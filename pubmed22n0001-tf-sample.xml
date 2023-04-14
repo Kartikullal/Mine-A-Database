@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE PubmedArticleSet SYSTEM "pubmed22n0001-tf-DTD.dtd">
+<!DOCTYPE Publications SYSTEM "pubmed22n0001-tf-DTD.dtd">
+
 <Publications>
   <Article PMID="1">
     <PubDetails>
