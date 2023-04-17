@@ -20,7 +20,7 @@
 <!ELEMENT ArticleTitle (#PCDATA)>
 <!ELEMENT AuthorList (Author+)>
 <!ATTLIST AuthorList CompleteYN CDATA #REQUIRED>
-<!ELEMENT Author (LastName, ForeName, Initials, Suffix?, AffiliationInfo*, CollectiveName*)>
+<!ELEMENT Author (LastName?, ForeName?, Initials?, Suffix?, AffiliationInfo?, CollectiveName?)>
 <!ATTLIST Author ValidYN CDATA #REQUIRED>
 <!ELEMENT LastName (#PCDATA)>
 <!ELEMENT ForeName (#PCDATA)>
