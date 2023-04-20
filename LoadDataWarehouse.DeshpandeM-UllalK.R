@@ -28,7 +28,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 #1. Settings
 db_user <- 'root'
-db_password <- 'root@123'
+db_password <- 'prakar@9599'
 db_name <- 'pubmed.db'
 db_host <- '127.0.0.1'
 db_port <- 3306
@@ -130,8 +130,8 @@ print(jounral_fact.df)
 sql <- "
   SELECT
     a.aid,
-    a.last_name,
-    a.fore_name,
+    a.author_last_name as last_name,
+    a.author_fore_name as fore_name,
     CAST(strftime('%m', ji.publication_date) as INTEGER) as pubDate_month,
     CEIL(CAST(strftime('%m', ji.publication_date) as FLOAT)/3) as pubDate_quarter,
     CAST(strftime('%Y', ji.publication_date) as INTEGER) as pubDate_year,
@@ -151,18 +151,18 @@ author_fact.df <- dbGetQuery(dbcon, sql);
 
 #Create entries for Date_Dim table
 
-min_pubDate_year <- min(jounral_fact.df$pubDate_year)
-max_pubDate_year <- max(jounral_fact.df$pubDate_year)
-nrows_required <- (max_pubDate_year-min_pubDate_year+1)*12
+min_pubDate_year <- min(jounral_fact.df$pubDate_year, na.rm = TRUE)
 
+max_pubDate_year <- max(jounral_fact.df$pubDate_year, na.rm = TRUE)
+nrows_required <- (max_pubDate_year-min_pubDate_year+1)*12
 Date_Dim.df <- data.frame(month = vector(mode = "integer", 
                                          length = nrows_required),
                           quarter = vector(mode = "integer", 
-                                         length = nrows_required),
+                                           length = nrows_required),
                           year = vector(mode = "integer", 
-                                         length = nrows_required),
+                                        length = nrows_required),
                           stringsAsFactors = F)
-          
+
 
 months <- rep(seq(1,12), times = (max_pubDate_year-min_pubDate_year+1))
 quarters <- ceiling(months/3)
