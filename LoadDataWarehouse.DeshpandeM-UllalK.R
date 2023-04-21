@@ -51,12 +51,12 @@ dbExecute(db_conn, "DROP TABLE IF EXISTS Date_Dim;")
 
 sql <- "
   CREATE TABLE Jounrals_Fact(
-    jounral_sk Integer,
+    journal_sk Integer,
     journal_title TEXT,
     pubDate_quarter INTEGER,
     pubDate_year INTEGER,
     article_count INTEGER,
-    PRIMARY KEY(jounralID, pubDate_quarter, pubDate_year)
+    PRIMARY KEY(jounral_sk, pubDate_quarter, pubDate_year)
   )"
 dbExecute(db_conn, sql)
 
@@ -65,6 +65,7 @@ sql <- "
     aid Integer,
     last_name TEXT,
     fore_name TEXT,
+    journal_sk INTEGER,
     pubDate_month INTEGER,
     pubDate_quarter INTEGER,
     pubDate_year INTEGER,
@@ -132,6 +133,7 @@ sql <- "
     a.aid,
     a.author_last_name as last_name,
     a.author_fore_name as fore_name,
+    ji.journal_sk,
     CAST(strftime('%m', ji.publication_date) as INTEGER) as pubDate_month,
     CEIL(CAST(strftime('%m', ji.publication_date) as FLOAT)/3) as pubDate_quarter,
     CAST(strftime('%Y', ji.publication_date) as INTEGER) as pubDate_year,
@@ -143,7 +145,7 @@ sql <- "
       ON ar.pmid = aa.pmid
     LEFT JOIN JournalIssues ji
       ON ar.journal_issue_id = ji.journal_issue_id
-  GROUP BY 1,2,3,4,5,6
+  GROUP BY 1,2,3,4,5,6,7
 "
 
 author_fact.df <- dbGetQuery(dbcon, sql);

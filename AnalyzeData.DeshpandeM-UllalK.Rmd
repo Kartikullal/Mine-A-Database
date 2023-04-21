@@ -1,0 +1,110 @@
+---
+title: "AnalyzeData.DeshpandeM-UllalK.Rmd"
+author: "Madhusudan Malhar Deshpande"
+date: '2023-04-20'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load Required Packages
+
+This code checks if the required packages are already installed. If not, the packages are installed and then loaded
+
+```{r load_packages}
+# Package names
+packages <- c("RMySQL", "ggplot2")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+
+## Connect to Database
+
+### Please put your database username and password before running this code
+
+```{r DB_Connection_Setup, include=TRUE}
+
+#1. Settings
+db_user <- 'root'
+db_password <- 'prakar@9599'
+db_name <- 'pubmed'
+db_host <- '127.0.0.1'
+db_port <- 3306
+
+#2. Read data from db
+db_conn <- dbConnect(RMySQL::MySQL(), user=db_user, password = db_password, 
+                     dbname = db_name, host = db_host, port = db_port)
+```
+
+
+## Analytical Query I
+
+Top five journals with the most articles published in them for the time period
+
+```{r}
+
+sql <- "
+  SELECT journal_sk, journal_title, sum(article_count) as articles_published
+  FROM Jounrals_Fact
+  GROUP BY journal_sk, journal_title
+  ORDER BY articles_published DESC
+  LIMIT 5
+"
+
+rs <- dbGetQuery(db_conn, sql)
+head(rs)
+
+ggplot(rs, aes(x=journal_title, y=articles_published)) + 
+  geom_bar(stat = "identity") +
+  labs(x="Journal", y="#Articles") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  geom_text(aes(label=articles_published), position=position_dodge(width=0.9), 
+            vjust=-0.25) + 
+  ylim(0,max(rs$articles_published)*1.1)
+
+```
+
+
+## Analytical Query II
+
+Number of articles per journal per year broken down by quarter.
+
+```{r}
+
+sql <- "
+  SELECT B.journal_sk, B.journal_title, A.quarter, A.year, B.article_count
+  FROM (SELECT distinct quarter, year from Date_Dim) A 
+  LEFT JOIN Jounrals_Fact B
+  ON A.quarter = B.pubDate_quarter
+  AND A.year = B.pubDate_year
+"
+
+rs <- dbGetQuery(db_conn, sql)
+head(rs)
+```
+
+
+Report: 
+
+The following 5 journals had the most publications in the given time frame. The frame ranges from 1975 to 1979. 
+
+1. The Journal of pharmacy and pharmacology (1036)
+2. Biochimica et biophysica acta (920)
+3. The Journal of biological chemistry (604)
+4. Annales de l'anesthesiologie francaise (542)
+5. Biochemistry (375). 
+
+They are represented in the bar graph above. 
+
+The number of articles published for each journal in each of the quarter for the given time period is stored in a data frame above. Since this data is given for each journal, storing them in a dataframe is the best way to represent it. We can then filter for any particular journal to dig deeper whenever required.
+
