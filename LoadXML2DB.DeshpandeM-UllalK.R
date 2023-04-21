@@ -24,7 +24,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 #Establish a connection to a sqlite database. 
 #At the first run, when the sqlite database does not exist, 
 #it will be automatically created
-
+# 
 #Define the database file
 fpath = ""
 dbfile = "pubmed.db"
@@ -35,20 +35,19 @@ dbcon <- dbConnect(RSQLite::SQLite(), paste0(fpath,dbfile))
 #Enable Foreign Key constraints check
 dbExecute(dbcon, "PRAGMA foreign_keys = ON")
 
-
-##############################################################################################
-
-#Part 1, Question 4&5: Design and Realize a normalized relational schema that contains 
-#the following entities/tables: Articles, Journals, Authors.
-
-#Drop already existing tables. 
-#This is done so that the code can be rerun afresh.
-
+# 
+# ##############################################################################################
+# 
+# #Part 1, Question 4&5: Design and Realize a normalized relational schema that contains 
+# #the following entities/tables: Articles, Journals, Authors.
+# 
+# #Drop already existing tables. 
+# #This is done so that the code can be rerun afresh.
+# 
 dbExecute(dbcon, "DROP TABLE IF EXISTS Articles_Authors;")
 dbExecute(dbcon, "DROP TABLE IF EXISTS JournalIssues;")
 dbExecute(dbcon, "DROP TABLE IF EXISTS Articles;")
 dbExecute(dbcon, "DROP TABLE IF EXISTS Authors;")
-
 dbExecute(dbcon, "DROP TABLE IF EXISTS Journals;")
 
 
@@ -89,8 +88,8 @@ dbExecute(dbcon, sql)
 sql <- "
   CREATE TABLE Authors (
     aid INTEGER PRIMARY KEY AUTOINCREMENT,
-    last_name TEXT,
-    fore_name TEXT
+    author_last_name TEXT,
+    author_fore_name TEXT
   )"
 dbExecute(dbcon, sql)
 
@@ -115,7 +114,7 @@ dbExecute(dbcon, sql)
 
 require(httr)
 UA <- "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.0 Safari/537.36"
-my_url <- 'https://raw.githubusercontent.com/Kartikullal/Mine-A-Database/main/pubmed22n0001-tf-sample.xml'
+my_url <- 'https://raw.githubusercontent.com/Kartikullal/Mine-A-Database/main/pubmed-tfm-xml.xml'
 doc <- GET(my_url, user_agent(UA))
 
 xmlDOM <- xmlParse(content(doc, "text"), validate = T)
@@ -129,82 +128,23 @@ numArticle <- xmlSize(r)
 
 # create data frames to store values 
 
-# 1) Articles Dataframe
+# 1) Creating a main dataframe to store all values from XML file to
+#     Contains all the necessary columns
 
-# Can use pre defiend length here 
-article.df <- data.frame(pmid = vector(mode = "character",
-                                       length = numArticle),
-                         article_title = vector(mode = 'character',
-                                                length = numArticle),
-                         journal_issue_id = vector(mode ='integer',
-                                                   length = numArticle),
-                         stringsAsFactors = F)
-
-# Following dataframes would require custom sizes, as we don't know how many values there are.
-# 2) Jounral Issues DataFrame
-journalIssues.df <- data.frame(journal_issue_id = integer(),
-                               citedMedium = character(),
-                               volume = character(),
-                               issue = character(),
-                               publication_date = character(),
-                               journal_sk = integer(),
-                               stringsAsFactors = F
-                               )
-
-# 3) Journals DataFrame
-journals.df <- data.frame(journal_sk = integer(),
-                          journal_title = character(),
-                          journal_iso_abbreviation = character(),
-                          stringsAsFactors = F)
-
-# 4) Authors Datframe
-authors.df <- data.frame( aid = integer(),
-                          last_name = character(),
-                          fore_name = character(),
-                          stringsAsFactors = F)
-
-# 5) articles and authors junction dataframe 
-articlesAuthors.df <- data.frame(pmid = character(),
-                                 aid = integer(),
-                                 stringsAsFactors = F)
-
-
-# Helper function to check if a row already exists in the dataframe
-
-# if existis, returns the index, else returns last index
-
-rowExists <- function (aRow, aDF)
-{
-  # input =  two dataframes
-  # output = 0 if no match, else index of row that matched
-  
-  # check if that address is already in the data frame
-  n <- nrow(aDF)
-  c <- ncol(aDF)
-  if (n == 0)
-  {
-    # data frame is empty, so can't exist
-    return(0)
-  }
-  
-  for (a in 1:n)
-  {
-
-    # check if all columns match for a row; ignore the aID column
-    if (all(aDF[a,] == aRow[1,]))
-    {
-      # found a match; return it's ID
-      return(a)
-    }
-  }
-  
-  # none matched
-  return(0)
-}
-
+main.df <- data.frame(pmid = character(),
+                      article_title = character(),
+                      citedMedium = character(),
+                      volume = character(),
+                      issue = character(),
+                      publication_date = character(),
+                      journal_title = character(),
+                      journal_iso_abbreviation = character(),
+                      author_last_name = character(),
+                      author_fore_name = character(),
+                      stringsAsFactors = F
+)
 
 # function to parse Date 
-
 parseDate <- function(aDateNode){
   # input = Xml Node which has Date data
   # output = parsed date
@@ -356,229 +296,238 @@ parseJournals <- function(aJournalNode){
 
 # function to parse authors
 parseAuthors <- function(aAuthorNode){
-    # input : a xml node with authors data
-    # output: a dataframe with author data
+  # input : a xml node with authors data
+  # output: a dataframe with author data
   
-    # get last name
-    query <- "./LastName"
-    last_name <- xpathSApply(aAuthorNode, query,xmlValue)
-    # use empty string for no last name
-    if (length(last_name) == 0){
-      last_name <- ''
+  # get last name
+  query <- "./LastName"
+  last_name <- xpathSApply(aAuthorNode, query,xmlValue)
+  # use empty string for no last name
+  if (length(last_name) == 0){
+    last_name <- ''
+  }
+  
+  # get forename
+  query <- "./ForeName"
+  fore_name <- xpathSApply(aAuthorNode, query,xmlValue)
+  
+  # get initials
+  query <- "./Initials"
+  initials <- xpathSApply(aAuthorNode, query, xmlValue)
+  
+  # get collective name
+  query <- "./CollectiveName"
+  collective_name <- xpathSApply(aAuthorNode, query,xmlValue)
+  
+  # forename is same as Intials, with a space in between
+  # eg. forename = 'A B', Initials = "AB" 
+  # therefore, if forename is empty, using Initials as forename
+  if(length(fore_name) == 0){
+    if(length(initials) != 0){
+      fore_name <- initials
+    }else{
+      # if initials is also empty, then empty string
+      fore_name <- ""
     }
-    
-    # get forename
-    query <- "./ForeName"
-    fore_name <- xpathSApply(aAuthorNode, query,xmlValue)
-    
-    # get initials
-    query <- "./Initials"
-    initials <- xpathSApply(aAuthorNode, query, xmlValue)
-    
-    # get collective name
-    query <- "./CollectiveName"
-    collective_name <- xpathSApply(aAuthorNode, query,xmlValue)
-    
-    # forename is same as Intials, with a space in between
-    # eg. forename = 'A B', Initials = "AB" 
-    # therefore, if forename is empty, using Initials as forename
-    if(length(fore_name) == 0){
-      if(length(initials) != 0){
-          fore_name <- initials
-      }else{
-        # if initials is also empty, then empty string
-        fore_name <- ""
-      }
-    } 
-    
-    # if both last name and forename is empty, then collective name is present
-    # using that for last name in such cases
-    if (is.null(last_name)  & is.null(fore_name)){
-      if(length(collective_name) ==0) collective_name<- ''
-      last_name <- collective_name
-    }
-
-    # creating data frame with last_name and fore_name
-    newAuthors.df <- data.frame(last_name, fore_name)
-    
-    return(newAuthors.df)
+  } 
+  
+  # if both last name and forename is empty, then collective name is present
+  # using that for last name in such cases
+  if (is.null(last_name)  & is.null(fore_name)){
+    if(length(collective_name) ==0) collective_name<- ''
+    last_name <- collective_name
+  }
+  
+  # creating data frame with last_name and fore_name
+  newAuthors.df <- data.frame(last_name, fore_name)
+  
+  return(newAuthors.df)
 }
 
 
-# Reading previously stored data 
-# This is just to parsr main file in batches since it takes a lot of time, is not part of the main code
-# We can load the data, and start from last index in article df
-
-#article.df <- read.csv('article_df.csv')
-#journalIssues.df <- read.csv('journalIssues_df.csv')
-#journals.df <- read.csv('journals_df.csv')
-#authors.df <- read.csv('authors_df.csv')
-#articlesAuthors.df <- read.csv('articlesAuthors_df.csv')
 
 
 
+i<-1 
 
-startIndex <- 1
-
-# To get the next start index for loading data
-
-#if(is.na(which(is.na(article.df$pmid))[1])){ 
-#  startIndex <- which(article.df$pmid == '')[1]
-#} else startIndex<-which(is.na(article.df$pmid))[1]
-
-
-# Main loop to parse xml and store in dataframe
-
-for( i in startIndex:numArticle){
+while ( i <= numArticle){
   
-  # get article node
+  # getting the root for article
   aArticle <- r[[i]]
   
-  # reading pmid and store in article.df
+  # reading pmid 
   pmid <- xmlGetAttr(aArticle, name = 'PMID')
-  article.df$pmid[i] <- pmid
   
-  # reading title and storing in article.df
+  # reading title
   query <- './PubDetails/ArticleTitle'
   ArticleTitle <- xpathSApply(aArticle, query,xmlValue)
-  article.df$article_title[i] <- ArticleTitle
+  
+  
   
   # Get Journal Node
   query <- './PubDetails/Journal'
   journal_node <-xpathSApply(aArticle, query)
- 
+  
   # Calling function to get parsed JournalIssues and Journals df
   df <-  parseJournals(journal_node[[1]])
   newJounralIssues.df <- df[[1]]
   newJournals.df <- df[[2]]
   
-
-  # check if the row from parsed dataframe is in original dataframe
-  pk.Journals <- rowExists(newJournals.df, journals.df[,2:ncol(journals.df)])
-  if (pk.Journals == 0)
-  {
-    # create new journal id
-    pk.Journals <- nrow(journals.df) + 1
-    # add rest of the columns from parsed dataframe
-    journals.df[pk.Journals,2:ncol(journals.df)] <- newJournals.df[1,]
-    journals.df[pk.Journals,1] <- pk.Journals
-  }
-
-
-  # create new journal issues id 
-  newJounralIssues.df[1,ncol(newJounralIssues.df)] <- pk.Journals
+  # reading the journal title and iso_abbreviation from journals df
+  journal_title <- newJournals.df$title
+  journal_iso_abbreviation <- newJournals.df$ISOAbbreviation
   
-  pk.JounralIssues <- rowExists(newJounralIssues.df, journalIssues.df[,2:ncol(journalIssues.df)])
-  if(pk.JounralIssues == 0){
-    
-    pk.JounralIssues <- nrow(journalIssues.df) + 1
-    # add rest of the values from parsed dataframe to main journalIssues dataframe
-    journalIssues.df[pk.JounralIssues,2] <- newJounralIssues.df$citedMedium
-    journalIssues.df[pk.JounralIssues,3] <- newJounralIssues.df$volume
-    journalIssues.df[pk.JounralIssues,4] <- newJounralIssues.df$issue
-    journalIssues.df[pk.JounralIssues,5] <- as.character(newJounralIssues.df$publication_date)
-    journalIssues.df[pk.JounralIssues,6] <- pk.Journals
-    journalIssues.df[pk.JounralIssues,1] <- pk.JounralIssues
-  }
-  article.df$journal_issue_id[i] <- pk.JounralIssues
-
   
-
+  # reading values from parsed journal_issues df
+  citedMedium <- newJounralIssues.df$citedMedium
+  volume <- newJounralIssues.df$volume
+  issue <- newJounralIssues.df$issue
+  publication_date <- as.character(newJounralIssues.df$publication_date)
   
   # get authorlist node
   query <- './PubDetails/AuthorList'
   author_node <-xpathSApply(aArticle, query)
   
-  # if empty, that means authors are not present
-  # so no entry is added into authors table
-  # article_author table has only pmid with NA for author id
+  # if authorlist empty, i.e no authors mentioned, then adding NA
   if (length(author_node)!= 0){
-    
     # get author node and number of authors
     author_node <- author_node[[1]]
     numAuthor <- xmlSize(author_node)
-  
-    # for each author, call parseAuthor function to get author details
+    
+    # looping through each author node
     for(j in 1:numAuthor){
+      
+      # reading author data 
       aAuthor <- author_node[[j]]
       newAuthors.df <- parseAuthors(aAuthor)
       
-      # check if author details are already present
-      pk.Authors <- rowExists(newAuthors.df, authors.df[,2:ncol(authors.df)])
-      if(pk.Authors == 0){
-        # if not, then create a aid and add the details
-        pk.Authors <- nrow(authors.df) + 1
-        authors.df[pk.Authors,2:ncol(authors.df)] <- newAuthors.df[1,]
-        authors.df[pk.Authors,1] <- pk.Authors
-      }
+      # storing author data
+      author_last_name <- newAuthors.df$last_name
+      author_first_name <- newAuthors.df$fore_name
       
-      # add the corresponding entry in articleAuthors dataframe
-      row_id <- nrow(articlesAuthors.df) + 1
-      articlesAuthors.df[row_id, 1] <- pmid
-      articlesAuthors.df[row_id, 2] <- pk.Authors
+      # adding new row of data to latest index
+      new_row <- c(pmid,ArticleTitle,citedMedium,volume,issue,publication_date,journal_title, journal_iso_abbreviation,author_last_name,author_first_name)
+      main.df[nrow(main.df)+1,] <- new_row
     }
-  } else{
-    # this is if no authors are present, then NA is added for aid
-    articlesAuthors.df[row_id, 1] <- pmid
-    articlesAuthors.df[row_id, 2] <- NA
+    
+  }else{
+    # if authors not present, adding NA
+    author_last_name <- NA
+    author_first_name <- NA
+    
+    # adding new row to data
+    new_row <- c(pmid,ArticleTitle,citedMedium,volume,issue,publication_date,journal_title, journal_iso_abbreviation,author_last_name,author_first_name)
+    main.df[nrow(main.df)+1,] <- new_row
   }
-  
-  # just to print number of instances parsed
-  if(as.integer(i)%%500 == 0){
-    print(paste0('Pmid Number is ', pmid))
+  if(i%%500 == 0){
+    print(paste0('Iteration: ', as.character(i)))
   }
+  i <- i + 1
 }
 
 print('Done!')
 
+
+# writing main dataframe to csv for storing
+write.csv(main.df, "main_df.csv", row.names=FALSE)
+
+
+
+
+##############################################################################################
+
+## Splitting and storing data from main dataframe into normalized dataframe
+
+# reading main.df
+main.df <- read.csv('main_df.csv')
+
+
+# 1) Authors Dataframe
+authors_df <- unique(main.df[, c('author_last_name', 'author_fore_name')])
+authors_df$aid <- 1:nrow(authors_df)
+authors_df <- authors_df[,c('aid', 'author_last_name', 'author_fore_name')]
+
+
+# 2) Journals Dataframe
+journals_df <- unique(main.df[, c('journal_title', 'journal_iso_abbreviation')])
+journals_df$journal_sk <- 1:nrow(journals_df)
+journals_df <- journals_df[,c('journal_sk', 'journal_title', 'journal_iso_abbreviation')]
+
+#  3) Journal Issues Dataframe
+jounralIssues_df <- unique(main.df[, c('citedMedium','volume','issue','publication_date','journal_title','journal_iso_abbreviation')])
+jounralIssues_df <- jounralIssues_df  %>% 
+  left_join(journals_df, on=c('journal_title','journal_iso_abbreviation'))
+jounralIssues_df$journal_issue_id <- 1:nrow(jounralIssues_df)
+jounralIssues_df <- jounralIssues_df[,c('journal_issue_id', 'citedMedium', 'volume','issue','publication_date','journal_sk')]
+
+
+# 4)  Articles DataFrame
+
+articles_df <- unique(main.df[,c('pmid','article_title','citedMedium','volume','issue','publication_date','journal_title','journal_iso_abbreviation')])
+articles_df <- articles_df  %>% 
+  left_join(journals_df, on=c('journal_title','journal_iso_abbreviation'))  %>%
+  left_join(jounralIssues_df, on=c( 'citedMedium', 'volume','issue','publication_date'))
+articles_df <- articles_df[,c('pmid','article_title','journal_issue_id')]
+
+
+# 4 ) Article_Author junction Dataframe
+
+article_author_df <- unique(main.df[,c('pmid','author_last_name', 'author_fore_name')])
+article_author_df <- article_author_df  %>% 
+  left_join(authors_df, on=c('author_last_name', 'author_fore_name'))  %>%
+  left_join(articles_df, on='pmid')
+article_author_df <- article_author_df[,c('pmid','aid')]
+
+
+
+
 # Save all the parsed data into csv file
 
+write.csv(articles_df, "article_df.csv", row.names=FALSE)
+write.csv(jounralIssues_df, "journalIssues_df.csv", row.names=FALSE)
+write.csv(journals_df, "journals_df.csv", row.names=FALSE)
+write.csv(authors_df, "authors_df.csv", row.names=FALSE)
+write.csv(article_author_df, "articlesAuthors_df.csv", row.names=FALSE)
 
-write.csv(article.df, "article_df.csv", row.names=FALSE)
-write.csv(journalIssues.df, "journalIssues_df.csv", row.names=FALSE)
-write.csv(journals.df, "journals_df.csv", row.names=FALSE)
-write.csv(authors.df, "authors_df.csv", row.names=FALSE)
-write.csv(articlesAuthors.df, "articlesAuthors_df.csv", row.names=FALSE)
 
+##############################################################################################
+
+
+## loading data into database
 
 # load the data from csv to dataframes
 
-#article.df <- read.csv('article_df.csv')
-#journalIssues.df <- read.csv('journalIssues_df.csv')
-#journals.df <- read.csv('journals_df.csv')
-#authors.df <- read.csv('authors_df.csv')
-#articlesAuthors.df <- read.csv('articlesAuthors_df.csv')
-
-
-print(journalIssues.df)
-
-print(journals.df)
-# write data from dataframe to db
+articles_df <- read.csv('article_df.csv')
+jounralIssues_df <- read.csv('journalIssues_df.csv')
+journals_df <- read.csv('journals_df.csv')
+authors_df <- read.csv('authors_df.csv')
+article_author_df <- read.csv('articlesAuthors_df.csv')
 
 
 # 1) Journal table
-dbWriteTable(dbcon,'Journals',journals.df,append=TRUE,row.names = FALSE)
+dbWriteTable(dbcon,'Journals',journals_df,append=TRUE,row.names = FALSE)
 sql <- "select * from Journals limit 5"
 dbGetQuery(dbcon, sql)
 
 
 # 2) JounralIssues table
-dbWriteTable(dbcon,'JournalIssues',journalIssues.df,append=TRUE,row.names = FALSE)
+dbWriteTable(dbcon,'JournalIssues',jounralIssues_df,append=TRUE,row.names = FALSE)
 sql <- "select * from JournalIssues limit 5"
 dbGetQuery(dbcon, sql)
 
 # 3) Article table
-dbWriteTable(dbcon,'Articles',article.df,append=TRUE,row.names = FALSE)
+dbWriteTable(dbcon,'Articles',articles_df,append=TRUE,row.names = FALSE)
 sql <- "select * from Articles limit 5"
 dbGetQuery(dbcon, sql)
 
 # 4) Auhtors table
-dbWriteTable(dbcon,'Authors',authors.df,append=TRUE,row.names = FALSE)
+dbWriteTable(dbcon,'Authors',authors_df,append=TRUE,row.names = FALSE)
 sql <- "select * from Authors limit 5"
 dbGetQuery(dbcon, sql)
 
 # 5) Article Authors junction table
-dbWriteTable(dbcon,'Articles_Authors',articlesAuthors.df,append=TRUE,row.names = FALSE)
+dbWriteTable(dbcon,'Articles_Authors',article_author_df,append=TRUE,row.names = FALSE)
 sql <- "select * from Articles_Authors limit 5"
 dbGetQuery(dbcon, sql)
+
 
